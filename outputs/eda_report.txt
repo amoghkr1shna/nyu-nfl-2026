@@ -1,0 +1,429 @@
+
+==============================================================================
+1. FILE SHAPES
+==============================================================================
+games.csv                     122 rows  x   7 cols
+players.csv                 1,679 rows  x   7 cols
+plays.csv                   8,557 rows  x  32 cols
+pffScoutingData.csv       188,254 rows  x  15 cols
+tracking/*.csv                122 games
+
+games: season(s) [np.int64(2021)], weeks 1-8
+plays: 8,557 unique gameId+playId
+
+==============================================================================
+2. COVERAGE COLUMNS (the man/zone label)
+==============================================================================
+pff_passCoverageType value counts (incl. missing):
+  Zone        5,588  ( 65.3%)
+  Man         2,481  ( 29.0%)
+  Other         488  (  5.7%)
+
+pff_passCoverage (the specific scheme) — top 15:
+  Cover-3                       2,665  ( 31.1%)
+  Cover-1                       2,011  ( 23.5%)
+  Cover-2                       1,085  ( 12.7%)
+  Quarters                      1,033  ( 12.1%)
+  Cover-6                         805  (  9.4%)
+  Red Zone                        376  (  4.4%)
+  Cover-0                         270  (  3.2%)
+  2-Man                           200  (  2.3%)
+  Bracket                          47  (  0.5%)
+  Prevent                          32  (  0.4%)
+  Goal Line                        25  (  0.3%)
+  Miscellaneous                     8  (  0.1%)
+
+Crosstab: scheme x type (sanity-check the Man/Zone mapping)
+pff_passCoverageType   Man  Other  Zone
+pff_passCoverage                       
+2-Man                  200      0     0
+Bracket                  0     47     0
+Cover-0                270      0     0
+Cover-1               2011      0     0
+Cover-2                  0      0  1085
+Cover-3                  0      0  2665
+Cover-6                  0      0   805
+Goal Line                0     25     0
+Miscellaneous            0      8     0
+Prevent                  0     32     0
+Quarters                 0      0  1033
+Red Zone                 0    376     0
+
+passResult value counts:
+  C           4,620  ( 54.0%)
+  I           2,755  ( 32.2%)
+  S             543  (  6.3%)
+  R             449  (  5.2%)
+  IN            190  (  2.2%)
+
+playDirection is on tracking, not plays. offenseFormation:
+  SHOTGUN       5,481
+  EMPTY         1,396
+  SINGLEBACK    1,189
+  I_FORM          298
+  PISTOL          154
+  JUMBO            30
+  nan               7
+  WILDCAT           2
+
+Missing-value rate for analysis columns:
+  down                      0.00%
+  yardsToGo                 0.00%
+  passResult                0.00%
+  offenseFormation          0.08%
+  defendersInBox            0.08%
+  dropBackType              6.17%
+  pff_playAction            0.00%
+  pff_passCoverage          0.00%
+  pff_passCoverageType      0.00%
+
+==============================================================================
+3. PFF ROLES AND THE ROUTE POPULATION
+==============================================================================
+pff_role value counts:
+  Coverage         57,765  ( 30.7%)
+  Pass Block       46,057  ( 24.5%)
+  Pass Route       39,513  ( 21.0%)
+  Pass Rush        36,362  ( 19.3%)
+  Pass              8,557  (  4.5%)
+
+Pass Route rows: 39,513
+
+officialPosition of Pass Route players:
+  WR         23,033 <- keep
+  TE          9,064 <- keep
+  RB          6,994 <- keep
+  FB            385
+  QB             32
+  C               3
+  T               2
+
+Routes at WR/TE/RB: 39,091  (98.9% of routes)
+Distinct players: 453
+Routes per play: mean 4.57
+
+Routes per player (for the min-route leaderboard threshold):
+count    453.000000
+mean      86.293598
+std       77.068438
+min        1.000000
+25%       20.000000
+50%       64.000000
+75%      135.000000
+max      296.000000
+  players with >=  10 routes:  382
+  players with >=  20 routes:  340
+  players with >=  30 routes:  304
+  players with >=  50 routes:  254
+  players with >=  75 routes:  206
+  players with >= 100 routes:  172
+
+WR/TE/RB route counts by position at >=30 routes:
+officialPosition
+WR    154
+TE     76
+RB     74
+
+pff_positionLinedUp for kept routes — top 12:
+pff_positionLinedUp
+LWR      8085
+RWR      7983
+SLWR     3493
+SRWR     3395
+HB-L     2236
+HB-R     2086
+SRoWR    1809
+SRiWR    1763
+TE-R     1717
+SLoWR    1425
+SLiWR    1397
+TE-L     1306
+
+==============================================================================
+4. TRACKING EVENTS (sample of 12 games)
+==============================================================================
+Event tag counts across sampled games (one tag per player-frame):
+  ball_snap                    19,504
+  pass_forward                 17,135
+  autoevent_ballsnap            9,062
+  autoevent_passforward         8,648
+  play_action                   4,324
+  run                           1,196
+  pass_arrived                    943
+  qb_sack                         943
+  autoevent_passinterrupted       506
+  man_in_motion                   460
+  line_set                        322
+  first_contact                   322
+  shift                           207
+  pass_outcome_caught             115
+  pass_tipped                     115
+  pass_outcome_incomplete          92
+  fumble                           69
+  fumble_offense_recovered         46
+  qb_strip_sack                    46
+  lateral                          23
+  handoff                          23
+  huddle_break_offense             23
+  tackle                           23
+
+Sampled plays: 849
+  with ball_snap               848  (99.9%)
+  with pass_forward            745  (87.8%)
+  with BOTH (usable window)    744  (87.6%)
+
+Frames per play (10 fps, so ~1 frame = 0.1 s):
+count    849.000000
+mean      42.064782
+std       13.650257
+min       22.000000
+25%       34.000000
+50%       39.000000
+75%       47.000000
+max      177.000000
+
+Why plays lack pass_forward — passResult of dropped plays:
+passResult
+S    48
+R    48
+C     4
+I     4
+
+Retention of usable plays by coverage type:
+                      plays  pct_with_forward
+pff_passCoverageType                         
+Man                     231          0.861472
+Other                    43          0.883721
+Zone                    575          0.883478
+
+==============================================================================
+5. SNAP-TO-THROW WINDOW LENGTH (first 6 games)
+==============================================================================
+Plays with a clean snap->throw window: 441
+count    441.000000
+mean       2.798186
+std        0.835734
+min        1.500000
+5%         1.800000
+25%        2.200000
+50%        2.600000
+75%        3.200000
+95%        4.400000
+max        6.900000
+
+Windows shorter than 1.0 s (too short for a 0.5 s break): 0.00%
+Windows shorter than 1.5 s: 0.00%
+
+==============================================================================
+6. TRACKING SCHEMA AND NORMALIZATION
+==============================================================================
+tracking_2021090900.csv: 92,644 rows x 16 cols
+
+dtypes:
+gameId             int64
+playId             int64
+nflId            float64
+frameId            int64
+time                 str
+jerseyNumber     float64
+team                 str
+playDirection        str
+x                float64
+y                float64
+s                float64
+a                float64
+dis              float64
+o                float64
+dir              float64
+event                str
+
+playDirection:
+playDirection
+right    62031
+left     30613
+
+team:
+team
+TB          44308
+DAL         44308
+football     4028
+
+Missing values per column:
+gameId            0.00
+playId            0.00
+nflId             4.35
+frameId           0.00
+time              0.00
+jerseyNumber      4.35
+team              0.00
+playDirection     0.00
+x                 0.00
+y                 0.00
+s                 0.00
+a                 0.00
+dis               0.00
+o                 4.35
+dir               4.35
+event            92.83
+
+Raw x/y/s/a/dir ranges:
+              x         y         s         a         o       dir
+count  92644.00  92644.00  92644.00  92644.00  88616.00  88616.00
+mean      66.19     27.36      2.41      1.71    184.92    180.54
+std       24.04      8.36      2.45      1.51     98.21    101.49
+min        4.61     -0.67      0.00      0.00      0.00      0.00
+25%       46.74     22.90      0.47      0.55     94.95     89.49
+50%       68.37     27.51      1.91      1.43    179.63    179.94
+75%       85.92     32.07      3.61      2.51    275.48    270.67
+max      117.36     53.01     26.44     31.55    360.00    359.99
+
+After normalization — mean x of offense at snap, by original playDirection:
+                   x      y     dir
+playDirection                      
+left           58.26  26.19  193.23
+right          68.35  27.32  193.04
+
+==============================================================================
+7. SAMPLE PLAY PLOT
+==============================================================================
+gameId 2021090900, playId 137 (playDirection=left)
+snap frame 7 -> throw frame 32  (2.5 s)
+saved outputs/figures/eda_sample_play.png
+Route runners gaining x: 5/5  (median +5.76 yd)
+Pass blockers, median x drift: -4.65 yd (negative = dropping back)
+
+==============================================================================
+7b. NORMALIZATION HOLDS BOTH DIRECTIONS (12 games)
+==============================================================================
+Receiver x drift from snap to throw, split by the ORIGINAL playDirection.
+If normalization worked, both rows look the same and both are positive.
+
+               routes   mean  median  pct_positive
+playDirection                                     
+left             1835  8.072    7.00         0.928
+right            1801  8.189    7.32         0.919
+
+==============================================================================
+8. SEPARATION AT THE THROW — FEASIBILITY ON ONE GAME
+==============================================================================
+Plays with a pass_forward frame: 92
+Receiver-frames: 435   Coverage-defender-frames: 612
+
+Separation values computed: 435
+count    435.00
+mean       3.47
+std        2.62
+min        0.47
+5%         0.75
+25%        1.33
+50%        2.85
+75%        4.83
+95%        8.56
+max       16.88
+
+By position:
+                    n  mean  median
+officialPosition                   
+RB                 78  5.84    5.43
+TE                 99  3.10    2.17
+WR                258  2.90    2.44
+
+Implausible values (<0 or >40 yd): 0
+
+==============================================================================
+9. DIRECTION SIGNAL — IS A BREAK DETECTABLE IN `dir`?
+==============================================================================
+Receiver-route windows on game 2021090900: 460
+Frames per route window: {'mean': 28.0, 'min': 16.0, 'max': 57.0}
+
+Frame-to-frame |d dir| > 180 deg using RAW dir:       84 (these are 0/360 wraparound artifacts, not real turns)
+Frame-to-frame |d dir| > 180 deg after np.unwrap:     0
+=> unwrap (or sin/cos) is required before measuring break angle.
+
+Sharpest 0.5 s heading change on this game: 231.9 deg
+  playId 1078, Tony Pollard
+  speed before break 0.03 yd/s -> after 0.53 yd/s (retention 1.00)
+  provisional sharpness = 231.9
+
+==============================================================================
+9b. LOW-SPEED ARTIFACT IN THE BREAK DETECTOR
+==============================================================================
+Route windows analysed (first 20 games): 6,240
+
+With NO gate, the detector lands on the snap frame, where the receiver
+is still set and `dir` is meaningless:
+  median speed before the 'break': 0.18 yd/s
+  share of breaks found at < 1.0 yd/s: 61.4%
+  share of 'breaks' exceeding 120 deg: 14.7%
+
+Ungated angle distribution (deg):
+count    6240.0
+mean       61.0
+std        48.3
+min         2.3
+50%        43.6
+90%       138.2
+99%       194.3
+max       306.9
+
+Applying the gate INSIDE the search keeps nearly every route and
+produces football-plausible break angles:
+   gate (yd/s)  routes kept   %kept  med speed  mean ang  med ang  p99 ang  >120deg
+           0.0        6,240  100.0%       0.18      61.0     43.6    194.3    14.7%
+           1.0        6,221   99.7%       4.06      32.5     22.1    166.2     4.2%
+           2.0        6,130   98.2%       4.39      27.8     20.4    149.2     2.3%
+           3.0        5,904   94.6%       4.78      23.3     18.4    119.6     0.9%
+           4.0        5,423   86.9%       5.26      19.1     16.2     63.0     0.1%
+
+Break Sharpness (angle x speed retention) under each gate:
+  gate 0.0: n=4,497  mean=  48.4  median=  31.9  p99= 184.6
+  gate 1.0: n=6,221  mean=  27.7  median=  20.3  p99= 141.8
+  gate 2.0: n=6,130  mean=  22.8  median=  18.4  p99=  92.3
+  gate 3.0: n=5,904  mean=  18.9  median=  16.3  p99=  58.3
+  gate 4.0: n=5,423  mean=  16.3  median=  14.4  p99=  43.6
+
+saved figures/eda_break_angle_vs_speed.png
+=> gate the break search on pre-break speed; do not let `dir` noise at a
+   standstill masquerade as a sharp cut.
+
+==============================================================================
+10. EXACT ANALYSIS SAMPLE — ALL 122 GAMES
+==============================================================================
+Plays in tracking: 8,554  (plays.csv has 8,557)
+Plays with snap AND pass_forward: 7,525  (88.0%)
+...and a Man/Zone label: 7,108  (drops 417 'Other')
+
+Play counts by coverage type in the final play set:
+pff_passCoverageType
+Zone    4943
+Man     2165
+
+ROUTE-LEVEL OBSERVATIONS FOR THE MAIN CHART: 32,495
+
+By position x coverage:
+pff_passCoverageType   Man   Zone    All
+officialPosition                        
+RB                    1612   4231   5843
+TE                    2234   5235   7469
+WR                    5951  13232  19183
+All                   9797  22698  32495
+
+Players with >=30 routes in BOTH man and zone (leaderboard eligibility):
+  134 players
+
+Players with >=30 total routes, by position:
+officialPosition
+WR    149
+RB     70
+TE     69
+
+Cooper Kupp's route sample (the planned player callout):
+pff_passCoverageType
+Zone    151
+Man      57
+
+saved play_windows.csv — snap/throw frame index reused by the main analysis
+
+==============================================================================
+EDA COMPLETE
+==============================================================================

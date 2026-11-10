@@ -218,3 +218,9 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Project: raw NFL data is cloned separately (see README)
+data/
+
+# macOS
+.DS_Store
