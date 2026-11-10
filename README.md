@@ -1,6 +1,4 @@
-# Sharp Cuts Don't Beat Man Coverage
-
-NFL Big Data Bowl, NYU Edition · 2021 season, Weeks 1–8 · **For coaches and scouts**
+# Breaking Ankles: Why Sharp Cuts Don’t Beat Man Coverage
 
 Coaches call sharp-breaking routes "man beaters." I measured the cut on **31,601 routes** from 2021 Next Gen Stats tracking data and found that sharp cuts gain **no extra space against man coverage**. Instead, man defenders take away about **0.3 yards more on every cut, sharp or soft**, so a receiver needs something other than a hard cut to win against man.
 
@@ -12,7 +10,7 @@ Coaches call sharp-breaking routes "man beaters." I measured the cut on **31,601
 
 *Running backs are shown for completeness but are the least reliable panel. Their sharpest "break" is often the turn out of the backfield rather than a cut against a defender. The headline rests on wide receivers and tight ends.*
 
-## Tabular Form 
+## Results 
 
 Fair comparison of similar cuts (same starting gap, same timing, same route depth, same time to throw):
 
@@ -50,26 +48,15 @@ Kupp (2021 Triple Crown season) ranks only **72nd of 112 WRs in shiftiness** and
 
 ## How I measured it
 
-**1. Break Sharpness (the stat).** For each route between the snap and the throw, we find the receiver's largest change of direction over 0.5 s (5 frames at 10 fps) and multiply it by how much speed he kept (speed after ÷ speed before, capped at 1).
+**1. Break Sharpness (the stat).** For each route between the snap and the throw, I found the receiver's largest change of direction over 0.5 s (5 frames at 10 fps) and multiply it by how much speed he kept (speed after ÷ speed before, capped at 1).
 - Before measuring, every play is flipped so the offense moves the same way.
-- Direction is *unwrapped* so a heading going from 359° to 1° counts as a 2° turn, not 358°.
-- **The EDA caught a real bug.** Taken literally, the "largest direction change" lands on the snap, when the receiver is standing still and his direction reading is meaningless: 61% of detected "breaks" happened below 1 yd/s, and 14.7% were over 120°. We only let a break start once the receiver is moving at least **3 yd/s**, which cuts impossible breaks to under 1% and still scores **97% of routes**. Details: [`EDA_FINDINGS.md`](EDA_FINDINGS.md).
+- Direction is *unwrapped* so a heading going from 359° to 1° counts as a 2° turn, instead of 358°.
 
-**2. Space gained (the outcome).** When the cut starts, we find the nearest coverage defender and measure the gap to **that same defender** again 0.5 s later, when the cut ends. Following one defender isolates what the cut did to the man on him.
+**2. Space gained (the outcome).** When the cut starts, I found the nearest coverage defender and measure the gap to **that same defender** again 0.5 s later, when the cut ends. Following one defender isolates what the cut did to the man on him.
 
-**3. Fair comparison.** Sharper cuts tend to happen later in the route and start with the defender closer, and both change how much space opens up regardless of the cut. Without adjusting, sharp cuts look like they create space; once we compare similar situations, that effect disappears. We adjust for **starting gap, cut timing, route depth and time to throw**, using a regression with robust standard errors ([`outputs/regression_summary.csv`](outputs/regression_summary.csv)).
+**3. Fair comparison.** Sharper cuts tend to happen later in the route and start with the defender closer, and both change how much space opens up regardless of the cut. Without adjusting, sharp cuts look like they create space; once I compared similar situations, that effect disappears. I adjusted for **starting gap, cut timing, route depth and time to throw**, using a regression with robust standard errors ([`outputs/regression_summary.csv`](outputs/regression_summary.csv)).
 
 **Sample:** 122 games, 7,105 pass plays labeled man or zone by PFF (sacks, scrambles and "Other" coverages removed), 31,601 WR/TE/RB routes (9,435 vs man, 22,166 vs zone).
-
-## Limitations
-
-- **Most "breaks" are small adjustments, not cuts.** 81% of WR routes have their biggest turn under 30°; about 3,700 WR routes have a real cut (30°+). That's why the main chart is split by cut angle.
-- **One break per route.** We score the largest direction change only.
-- **Nearest defender stands in for the covering defender.** PFF tells us who was in coverage, not who was assigned to whom.
-- **Space is measured during the cut, not at the catch.** Tracking ends about 0.5 s after the throw, so there's no separation at the catch.
-- **All routes count, not just targeted ones,** which keeps the quarterback's choices out of the measure.
-- **Running backs:** see the note under the main chart.
-- **Effects are modest.** The man-vs-zone gap is very clear statistically, but each individual cut is noisy (R² 0.07–0.12).
 
 ## How to run
 
