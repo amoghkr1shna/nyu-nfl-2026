@@ -59,7 +59,7 @@ POSITION_NAMES = {"WR": "Wide receivers", "TE": "Tight ends", "RB": "Running bac
 
 # Colors: categorical slots 1-2 of the validated reference palette.
 # Man (the coverage the claim is about) gets the warmer, more prominent hue.
-COLORS = {"Man": "#eb6834", "Zone": "#2a78d6"}
+COLORS = {"Man": "#e34948", "Zone": "#2a78d6"}
 SURFACE = "#fcfcfb"
 TEXT = "#0b0b0b"
 TEXT_2 = "#52514e"
@@ -108,7 +108,7 @@ def main_chart(effect: pd.DataFrame) -> None:
     fig.suptitle("Sharp cuts don't beat man coverage", x=0.012, ha="left",
                  fontsize=16, fontweight="bold", color=TEXT, y=0.995)
     fig.text(0.012, 0.905,
-             "Against man (orange), receivers gain less space than against zone (blue) "
+             "Against man (red), receivers gain less space than against zone (blue) "
              "on almost every kind of cut, and sharper cuts don't close the gap.",
              fontsize=10.5, color=TEXT_2)
     fig.text(0.012, 0.01,
@@ -155,7 +155,7 @@ def shiftiness_chart(board: pd.DataFrame) -> None:
     ax.scatter(wr.loc[labeled, "shiftiness"], wr.loc[labeled, "gain_man"], s=52,
                color=COLORS["Zone"], edgecolor=SURFACE, lw=1.2, zorder=3)
     ax.scatter(wr.loc[callout, "shiftiness"], wr.loc[callout, "gain_man"], s=90,
-               color=COLORS["Man"], edgecolor=SURFACE, lw=1.5, zorder=4)
+               color=TEXT, edgecolor=SURFACE, lw=1.5, zorder=4)
 
     for _, r in wr.loc[labeled | callout].iterrows():
         is_callout = r["displayName"] == CALLOUT

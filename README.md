@@ -6,7 +6,7 @@ Coaches call sharp-breaking routes "man beaters." We measured the cut on **31,60
 
 ![Sharp cuts don't beat man coverage](outputs/figures/sharpness_vs_separation.png)
 
-*How to read it:* each point is the average space a receiver gains on his defender during the cut, for one range of cut angles. The orange (man) line sits below the blue (zone) line in 11 of 12 points, and sharper cuts never close the gap.
+*How to read it:* each point is the average space a receiver gains on his defender during the cut, for one range of cut angles. The red (man) line sits below the blue (zone) line in 11 of 12 points, and sharper cuts never close the gap.
 
 *Running backs are shown for completeness but are the least reliable panel. Their sharpest "break" is often the turn out of the backfield rather than a cut against a defender, the nearest coverage defender is a weaker stand-in for who is covering them, and the 60°+ bin has only 42 man routes. The headline rests on wide receivers and tight ends.*
 

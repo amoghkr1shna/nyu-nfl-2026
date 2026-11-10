@@ -12,6 +12,7 @@ Steps:
                               -> outputs/coverage_effect.csv, regression_summary.csv,
                                  leaderboard.csv
   3. src.charts               README figures -> outputs/figures/*.png
+  4. src.site                 data for the interactive page -> docs/data.js
 """
 
 from __future__ import annotations
@@ -68,7 +69,7 @@ def main() -> None:
             with open(EDA_REPORT, "w") as fh, contextlib.redirect_stdout(fh):
                 eda.main()
 
-    from src import analysis, charts, metrics
+    from src import analysis, charts, metrics, site
 
     with step("1. Route metrics"):
         ctx = metrics.load_context()
@@ -82,6 +83,9 @@ def main() -> None:
 
     with step("3. Charts"):
         charts.main()
+
+    with step("4. Interactive page data (docs/data.js)"):
+        site.main()
 
     print(f"\nAll done in {time.time() - t0:.0f} s. Results are in "
           f"{OUTPUTS.relative_to(OUTPUTS.parent)}/")

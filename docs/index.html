@@ -1,0 +1,478 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sharp Cuts vs Man Coverage</title>
+<meta name="description" content="Do sharp route breaks beat man coverage? An interactive look at 31,601 routes from 2021 NFL tracking data.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  /* Neutral theme borrowed from the nfl-dashboard globals.css (shadcn tokens). */
+  :root {
+    --background: oklch(1 0 0);
+    --foreground: oklch(0.145 0 0);
+    --card: oklch(1 0 0);
+    --muted: oklch(0.97 0 0);
+    --muted-foreground: oklch(0.556 0 0);
+    --border: oklch(0.922 0 0);
+    --ring: oklch(0.708 0 0);
+    --primary: oklch(0.205 0 0);
+    --primary-foreground: oklch(0.985 0 0);
+    --radius: 0.625rem;
+    /* Series colors match the static charts: man = red, zone = blue. */
+    --man: #e34948;
+    --zone: #2a78d6;
+    --grid: oklch(0.94 0 0);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --background: oklch(0.145 0 0);
+      --foreground: oklch(0.985 0 0);
+      --card: oklch(0.17 0 0);
+      --muted: oklch(0.269 0 0);
+      --muted-foreground: oklch(0.708 0 0);
+      --border: oklch(0.269 0 0);
+      --ring: oklch(0.439 0 0);
+      --primary: oklch(0.985 0 0);
+      --primary-foreground: oklch(0.205 0 0);
+      --man: #e66767;
+      --zone: #3987e5;
+      --grid: oklch(0.24 0 0);
+    }
+  }
+  :root[data-theme="dark"] {
+    --background: oklch(0.145 0 0);
+    --foreground: oklch(0.985 0 0);
+    --card: oklch(0.17 0 0);
+    --muted: oklch(0.269 0 0);
+    --muted-foreground: oklch(0.708 0 0);
+    --border: oklch(0.269 0 0);
+    --ring: oklch(0.439 0 0);
+    --primary: oklch(0.985 0 0);
+    --primary-foreground: oklch(0.205 0 0);
+    --man: #e66767;
+    --zone: #3987e5;
+    --grid: oklch(0.24 0 0);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--background);
+    color: var(--foreground);
+    font-family: 'Geist', system-ui, -apple-system, sans-serif;
+    line-height: 1.5;
+  }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 40px 16px 64px; }
+  .eyebrow { font-size: 13px; color: var(--muted-foreground); margin: 0 0 8px; }
+  h1 { font-size: clamp(28px, 5vw, 40px); line-height: 1.1; margin: 0 0 12px; letter-spacing: -0.02em; }
+  h2 { font-size: 18px; margin: 0 0 4px; letter-spacing: -0.01em; }
+  .lede { font-size: 17px; max-width: 720px; margin: 0 0 28px; }
+  .sub { color: var(--muted-foreground); font-size: 14px; margin: 0 0 16px; }
+  .num { font-family: 'Geist Mono', ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 28px; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: calc(var(--radius) + 4px);
+    padding: 20px;
+  }
+  .tile .label { font-size: 13px; color: var(--muted-foreground); }
+  .tile .value { font-size: 30px; font-weight: 600; letter-spacing: -0.02em; margin: 2px 0; }
+  .tile .note { font-size: 13px; color: var(--muted-foreground); }
+
+  .toolbar {
+    position: sticky; top: 0; z-index: 5;
+    display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between;
+    padding: 12px 0; margin-bottom: 8px;
+    background: var(--background);
+  }
+  .seg { display: inline-flex; background: var(--muted); border-radius: var(--radius); padding: 3px; }
+  .seg button {
+    font: inherit; font-size: 14px; border: 0; background: transparent; color: var(--muted-foreground);
+    padding: 6px 14px; border-radius: calc(var(--radius) - 2px); cursor: pointer;
+  }
+  .seg button[aria-pressed="true"] { background: var(--card); color: var(--foreground); box-shadow: 0 1px 2px rgb(0 0 0 / 0.08); }
+  .seg button:focus-visible, input:focus-visible, th button:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+  input[type="search"] {
+    font: inherit; font-size: 14px; color: var(--foreground); background: var(--card);
+    border: 1px solid var(--border); border-radius: var(--radius); padding: 7px 12px; width: 220px; max-width: 100%;
+  }
+
+  section { margin-bottom: 20px; }
+  .chart { position: relative; }
+  svg { display: block; width: 100%; height: auto; overflow: visible; }
+  svg text { font-family: inherit; fill: var(--muted-foreground); font-size: 12px; }
+  .axis-line { stroke: var(--border); }
+  .gridline { stroke: var(--grid); }
+  .zero { stroke: var(--ring); }
+  .legend { display: flex; gap: 16px; font-size: 13px; color: var(--muted-foreground); margin-bottom: 8px; }
+  .legend span::before { content: ""; display: inline-block; width: 12px; height: 3px; border-radius: 2px; margin-right: 6px; vertical-align: middle; background: currentColor; }
+  .legend .man { color: var(--man); } .legend .zone { color: var(--zone); }
+  .legend .man b, .legend .zone b { color: var(--foreground); font-weight: 500; }
+
+  .tip {
+    position: absolute; pointer-events: none; opacity: 0; transition: opacity 0.1s;
+    background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 8px 10px; font-size: 13px; box-shadow: 0 4px 12px rgb(0 0 0 / 0.12); min-width: 160px; z-index: 3;
+    white-space: nowrap;
+  }
+  .tip .t { font-weight: 600; margin-bottom: 2px; }
+  .tip .r { display: flex; justify-content: space-between; gap: 12px; color: var(--muted-foreground); }
+  .tip .r b { color: var(--foreground); font-weight: 500; }
+
+  .note-rb {
+    font-size: 13px; color: var(--muted-foreground); background: var(--muted);
+    border-radius: var(--radius); padding: 10px 12px; margin-top: 12px; display: none;
+  }
+  .verdict { font-size: 14px; margin-top: 12px; }
+
+  .dot { cursor: pointer; transition: opacity 0.15s; }
+  .dim .dot { opacity: 0.18; }
+  .dim .dot.hit { opacity: 1; }
+
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: right; padding: 8px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  th:nth-child(2), td:nth-child(2) { text-align: left; }
+  th { font-weight: 500; color: var(--muted-foreground); }
+  th button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+  th button[data-active="true"] { color: var(--foreground); }
+  tbody tr { cursor: pointer; }
+  tbody tr:hover, tbody tr.sel { background: var(--muted); }
+  .pos { color: var(--foreground); font-weight: 600; } .neg { color: var(--muted-foreground); }
+  .chip { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+
+  details { font-size: 14px; }
+  details summary { cursor: pointer; font-weight: 600; font-size: 16px; }
+  details ul { padding-left: 18px; color: var(--muted-foreground); }
+  footer { font-size: 13px; color: var(--muted-foreground); margin-top: 28px; }
+  a { color: inherit; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="eyebrow">NFL Big Data Bowl · NYU Edition · 2021 Weeks 1–8 · for coaches and scouts</p>
+  <h1>Sharp cuts don't beat man coverage</h1>
+  <p class="lede">Coaches call sharp-breaking routes "man beaters." We measured the cut on every route and found that sharp cuts gain no extra space against man. Man defenders take away about <b>0.3 yards more on every cut</b>, sharp or soft.</p>
+
+  <div class="tiles" id="tiles"></div>
+
+  <div class="toolbar">
+    <div class="seg" role="group" aria-label="Position" id="posSeg">
+      <button data-pos="WR" aria-pressed="true">Wide receivers</button>
+      <button data-pos="TE" aria-pressed="false">Tight ends</button>
+      <button data-pos="RB" aria-pressed="false">Running backs</button>
+    </div>
+    <input type="search" id="search" placeholder="Find a player…" aria-label="Find a player">
+  </div>
+
+  <section class="card">
+    <h2>Space gained during the cut, by cut angle</h2>
+    <p class="sub">Average yards a receiver gains on the defender nearest him when the cut starts, measured 0.5 s later. Adjusted so similar cuts are compared (same starting gap, timing, depth and time to throw). Bands show the 95% range. Hover a column for numbers.</p>
+    <div class="legend"><span class="man"><b>Man</b></span><span class="zone"><b>Zone</b></span></div>
+    <div class="chart" id="effectChart"></div>
+    <p class="verdict" id="verdict"></p>
+    <p class="note-rb" id="rbNote">Running backs are the least reliable panel. Their sharpest "break" is often the turn out of the backfield rather than a cut against a defender, the nearest coverage defender is a weaker stand-in for who is covering them, and the 60°+ bin has only 42 man routes. The headline rests on wide receivers and tight ends.</p>
+  </section>
+
+  <section class="card">
+    <h2>Who's the shiftiest, and does it pay off against man?</h2>
+    <p class="sub">Each dot is a player (50+ routes, 20+ against man). Right = shiftier; up = more space gained against man. Lines are medians. Hover a dot, search above, or click a table row.</p>
+    <div class="chart" id="scatter"></div>
+    <p class="verdict" id="scatterVerdict"></p>
+  </section>
+
+  <section class="card">
+    <h2>Leaderboard</h2>
+    <p class="sub">Click a column to sort. Space = average yards gained on the defender per cut (adjusted).</p>
+    <div class="table-wrap"><table id="board"><thead></thead><tbody></tbody></table></div>
+  </section>
+
+  <section class="card">
+    <details>
+      <summary>How we measured it, and what to keep in mind</summary>
+      <ul>
+        <li><b>Break Sharpness:</b> the receiver's largest change of direction over 0.5 s between snap and throw, times the share of speed he kept. A break only counts once he is moving at least 3 yd/s; without that, the stat picked up players standing still at the snap.</li>
+        <li><b>Space gained:</b> distance to the coverage defender nearest at the start of the cut, measured again at the end, minus the starting distance.</li>
+        <li><b>Fair comparison:</b> sharper cuts happen later in routes and start with the defender closer. Once those are held fixed, sharp cuts don't create extra space.</li>
+        <li>Most detected "breaks" are small adjustments: 81% of WR routes turn less than 30°.</li>
+        <li>The nearest defender stands in for the covering defender. Tracking ends about 0.5 s after the throw, so there's no separation at the catch.</li>
+        <li>All routes count, not only targeted ones, which keeps the quarterback's choices out of the measure.</li>
+      </ul>
+    </details>
+  </section>
+
+  <footer id="footer"></footer>
+</div>
+
+<script src="data.js"></script>
+<script>
+(() => {
+  const D = window.FINDINGS;
+  const NAMES = { WR: "wide receivers", TE: "tight ends", RB: "running backs" };
+  const fmt = (v, d = 2) => {
+    const r = +v.toFixed(d) || 0;  // avoids "−0.0" from floating-point drift
+    return (r > 0 ? "+" : r < 0 ? "−" : "") + Math.abs(r).toFixed(d);
+  };
+  const int = v => Math.round(v).toLocaleString("en-US");
+  const NS = "http://www.w3.org/2000/svg";
+  const el = (tag, attrs = {}, parent) => {
+    const n = document.createElementNS(NS, tag);
+    for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
+    if (parent) parent.appendChild(n);
+    return n;
+  };
+  const state = { pos: "WR", query: "", selected: null, sort: { key: "shiftiness_rank", asc: true } };
+
+  // ---- Tiles ---------------------------------------------------------------
+  const wr = D.model.WR;
+  document.getElementById("tiles").innerHTML = [
+    ["Routes measured", int(D.totals.routes), `${int(D.totals.man)} vs man · ${int(D.totals.zone)} vs zone`],
+    ["Space lost vs man (WR)", `${fmt(wr.is_man.coef)} yd`, "per cut, compared with zone"],
+    ["Extra help from sharper cuts vs man", fmt(wr.man_x_angle.coef, 2), "yards per standard deviation: none"],
+    ["Games · plays", `${D.totals.games} · ${int(D.totals.plays)}`, "2021 Weeks 1–8, PFF man/zone labels"],
+  ].map(([l, v, n]) => `<div class="card tile"><div class="label">${l}</div><div class="value num">${v}</div><div class="note">${n}</div></div>`).join("");
+
+  // ---- Tooltip helper -------------------------------------------------------
+  function tooltip(host) {
+    const t = document.createElement("div");
+    t.className = "tip";
+    host.appendChild(t);
+    return {
+      show(html, x, y) {
+        t.innerHTML = html;
+        t.style.opacity = 1;
+        const w = t.offsetWidth, hw = host.clientWidth;
+        t.style.left = Math.min(Math.max(x + 12, 0), hw - w) + "px";
+        t.style.top = Math.max(y - t.offsetHeight - 10, 0) + "px";
+      },
+      hide() { t.style.opacity = 0; },
+    };
+  }
+
+  // ---- Chart 1: space gained by cut angle ----------------------------------
+  const effHost = document.getElementById("effectChart");
+  const effTip = tooltip(effHost);
+  function drawEffect() {
+    effHost.querySelector("svg")?.remove();
+    const rows = D.effect.filter(r => r.position === state.pos);
+    const bins = [...new Set(rows.map(r => r.angle_bin))];
+    const W = 720, H = 300, m = { t: 12, r: 16, b: 44, l: 52 };
+    const lo = Math.min(...rows.map(r => r.mean - r.ci95), -0.1);
+    const hi = Math.max(...rows.map(r => r.mean + r.ci95), 0.1);
+    const pad = (hi - lo) * 0.08;
+    const y = v => m.t + (H - m.t - m.b) * (1 - (v - (lo - pad)) / ((hi + pad) - (lo - pad)));
+    const step = (W - m.l - m.r) / bins.length;
+    const x = i => m.l + step * (i + 0.5);
+
+    const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img",
+      "aria-label": `Space gained by cut angle for ${NAMES[state.pos]}, man versus zone` });
+    const ticks = [];
+    for (let v = Math.ceil((lo - pad) * 5) / 5; v <= hi + pad; v += 0.2) ticks.push(+v.toFixed(1));
+    ticks.forEach(v => {
+      el("line", { x1: m.l, x2: W - m.r, y1: y(v), y2: y(v), class: v === 0 ? "zero" : "gridline" }, svg);
+      el("text", { x: m.l - 8, y: y(v) + 4, "text-anchor": "end", class: "num" }, svg).textContent = fmt(v, 1);
+    });
+    bins.forEach((b, i) => {
+      el("text", { x: x(i), y: H - m.b + 20, "text-anchor": "middle" }, svg).textContent = b;
+    });
+    el("text", { x: m.l + (W - m.l - m.r) / 2, y: H - 6, "text-anchor": "middle" }, svg).textContent = "cut angle (sharpest change of direction in 0.5 s)";
+    el("text", { x: 14, y: m.t + (H - m.t - m.b) / 2, "text-anchor": "middle",
+      transform: `rotate(-90 14 ${m.t + (H - m.t - m.b) / 2})` }, svg).textContent = "yards gained";
+
+    for (const cov of ["Zone", "Man"]) {
+      const s = bins.map(b => rows.find(r => r.angle_bin === b && r.coverage === cov));
+      const color = `var(--${cov.toLowerCase()})`;
+      const band = s.map((r, i) => `${x(i)},${y(r.mean + r.ci95)}`).join(" ") + " " +
+        s.slice().reverse().map((r, j) => `${x(s.length - 1 - j)},${y(r.mean - r.ci95)}`).join(" ");
+      el("polygon", { points: band, fill: color, "fill-opacity": 0.13 }, svg);
+      el("polyline", { points: s.map((r, i) => `${x(i)},${y(r.mean)}`).join(" "),
+        fill: "none", stroke: color, "stroke-width": 2.5, "stroke-linejoin": "round" }, svg);
+      s.forEach((r, i) => el("circle", { cx: x(i), cy: y(r.mean), r: 5, fill: color,
+        stroke: "var(--card)", "stroke-width": 2 }, svg));
+    }
+    // Hover columns
+    bins.forEach((b, i) => {
+      const hit = el("rect", { x: x(i) - step / 2, y: m.t, width: step, height: H - m.t - m.b,
+        fill: "transparent", tabindex: 0 }, svg);
+      const show = ev => {
+        const man = rows.find(r => r.angle_bin === b && r.coverage === "Man");
+        const zone = rows.find(r => r.angle_bin === b && r.coverage === "Zone");
+        const box = effHost.getBoundingClientRect();
+        const px = ev.clientX ? ev.clientX - box.left : (x(i) / W) * box.width;
+        const py = ev.clientY ? ev.clientY - box.top : 40;
+        effTip.show(`<div class="t">${b} cuts</div>
+          <div class="r"><span>Man</span><b class="num">${fmt(man.mean)} yd · ${int(man.routes)}</b></div>
+          <div class="r"><span>Zone</span><b class="num">${fmt(zone.mean)} yd · ${int(zone.routes)}</b></div>
+          <div class="r"><span>Man − zone</span><b class="num">${fmt(man.mean - zone.mean)} yd</b></div>`, px, py);
+      };
+      hit.addEventListener("mousemove", show);
+      hit.addEventListener("focus", show);
+      hit.addEventListener("mouseleave", () => effTip.hide());
+      hit.addEventListener("blur", () => effTip.hide());
+    });
+    effHost.prepend(svg);
+
+    const mm = D.model[state.pos];
+    const below = bins.filter(b => rows.find(r => r.angle_bin === b && r.coverage === "Man").mean <
+      rows.find(r => r.angle_bin === b && r.coverage === "Zone").mean).length;
+    document.getElementById("verdict").innerHTML =
+      `For ${NAMES[state.pos]}, man is below zone in <b>${below} of ${bins.length}</b> angle ranges. ` +
+      `Comparing similar cuts, a cut against man gains <b class="num">${fmt(mm.is_man.coef)} yd</b> versus zone, ` +
+      `and sharper cuts add <b class="num">${fmt(mm.man_x_angle.coef)}</b> extra against man (not a real effect).`;
+    document.getElementById("rbNote").style.display = state.pos === "RB" ? "block" : "none";
+  }
+
+  // ---- Chart 2: shiftiness vs space gained vs man --------------------------
+  const scHost = document.getElementById("scatter");
+  const scTip = tooltip(scHost);
+  const median = a => { const s = a.slice().sort((p, q) => p - q); const h = s.length / 2;
+    return s.length % 2 ? s[Math.floor(h)] : (s[h - 1] + s[h]) / 2; };
+  const rank = a => { const idx = a.map((v, i) => [v, i]).sort((p, q) => p[0] - q[0]);
+    const r = Array(a.length); idx.forEach(([, i], k) => (r[i] = k)); return r; };
+  const corr = (a, b) => { const n = a.length, ma = a.reduce((s, v) => s + v, 0) / n, mb = b.reduce((s, v) => s + v, 0) / n;
+    let num = 0, da = 0, db = 0; for (let i = 0; i < n; i++) { num += (a[i] - ma) * (b[i] - mb); da += (a[i] - ma) ** 2; db += (b[i] - mb) ** 2; }
+    return num / Math.sqrt(da * db); };
+  const matches = p => (state.query && p.displayName.toLowerCase().includes(state.query)) || p.displayName === state.selected;
+
+  function drawScatter() {
+    scHost.querySelector("svg")?.remove();
+    const ps = D.players.filter(p => p.position === state.pos);
+    const W = 720, H = 400, m = { t: 16, r: 16, b: 44, l: 52 };
+    const xs = ps.map(p => p.shiftiness), ys = ps.map(p => p.gain_man);
+    const [x0, x1] = [Math.min(...xs) - 0.4, Math.max(...xs) + 0.4];
+    const [y0, y1] = [Math.min(...ys) - 0.08, Math.max(...ys) + 0.08];
+    const X = v => m.l + (W - m.l - m.r) * (v - x0) / (x1 - x0);
+    const Y = v => m.t + (H - m.t - m.b) * (1 - (v - y0) / (y1 - y0));
+    const mx = median(xs), my = median(ys);
+    const anyHit = ps.some(matches);
+
+    const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img",
+      "aria-label": `Shiftiness versus space gained against man for ${NAMES[state.pos]}`,
+      class: anyHit ? "dim" : "" });
+    for (let v = Math.ceil(y0 * 5) / 5; v <= y1; v += 0.2) {
+      el("line", { x1: m.l, x2: W - m.r, y1: Y(v), y2: Y(v), class: "gridline" }, svg);
+      el("text", { x: m.l - 8, y: Y(v) + 4, "text-anchor": "end", class: "num" }, svg).textContent = fmt(v, 1);
+    }
+    for (let v = Math.ceil(x0); v <= x1; v += 1)
+      el("text", { x: X(v), y: H - m.b + 18, "text-anchor": "middle", class: "num" }, svg).textContent = v;
+    el("line", { x1: X(mx), x2: X(mx), y1: m.t, y2: H - m.b, class: "zero", "stroke-dasharray": "3 3" }, svg);
+    el("line", { x1: m.l, x2: W - m.r, y1: Y(my), y2: Y(my), class: "zero", "stroke-dasharray": "3 3" }, svg);
+    const q = (tx, ty, a, txt) => { el("text", { x: tx, y: ty, "text-anchor": a, "font-style": "italic" }, svg).textContent = txt; };
+    q(W - m.r - 4, m.t + 12, "end", "Shifty AND wins vs man");
+    q(m.l + 4, m.t + 12, "start", "Not shifty, still wins vs man");
+    q(W - m.r - 4, H - m.b - 6, "end", "Shifty, but loses vs man");
+    q(m.l + 4, H - m.b - 6, "start", "Neither");
+    el("text", { x: m.l + (W - m.l - m.r) / 2, y: H - 6, "text-anchor": "middle" }, svg).textContent = "shiftiness → (average Break Sharpness per route)";
+    el("text", { x: 14, y: m.t + (H - m.t - m.b) / 2, "text-anchor": "middle",
+      transform: `rotate(-90 14 ${m.t + (H - m.t - m.b) / 2})` }, svg).textContent = "space gained vs man (yd) →";
+
+    ps.forEach(p => {
+      const hit = matches(p);
+      const c = el("circle", { cx: X(p.shiftiness), cy: Y(p.gain_man), r: hit ? 7 : 5.5,
+        fill: hit ? "var(--foreground)" : "var(--zone)", "fill-opacity": hit ? 1 : 0.55,
+        stroke: "var(--card)", "stroke-width": 1.5, class: "dot" + (hit ? " hit" : ""), tabindex: 0,
+        "aria-label": p.displayName }, svg);
+      const show = ev => {
+        const box = scHost.getBoundingClientRect();
+        const px = ev.clientX ? ev.clientX - box.left : (X(p.shiftiness) / W) * box.width;
+        const py = ev.clientY ? ev.clientY - box.top : (Y(p.gain_man) / H) * box.height;
+        scTip.show(`<div class="t">${p.displayName}</div>
+          <div class="r"><span>Shiftiness rank</span><b class="num">#${p.shiftiness_rank} of ${ps.length}</b></div>
+          <div class="r"><span>Space vs man</span><b class="num">${fmt(p.gain_man)} yd</b></div>
+          <div class="r"><span>Space vs zone</span><b class="num">${fmt(p.gain_zone)} yd</b></div>
+          <div class="r"><span>Routes</span><b class="num">${p.routes}</b></div>`, px, py);
+      };
+      c.addEventListener("mousemove", show);
+      c.addEventListener("focus", show);
+      c.addEventListener("mouseleave", () => scTip.hide());
+      c.addEventListener("blur", () => scTip.hide());
+      c.addEventListener("click", () => select(p.displayName));
+      if (hit) {
+        const right = X(p.shiftiness) > W * 0.75;
+        el("text", { x: X(p.shiftiness) + (right ? -10 : 10), y: Y(p.gain_man) + 4,
+          "text-anchor": right ? "end" : "start", style: "fill: var(--foreground); font-weight: 600" }, svg)
+          .textContent = p.displayName;
+      }
+    });
+    scHost.prepend(svg);
+
+    const rho = corr(rank(xs), rank(ys));
+    const top5 = ps.slice().sort((a, b) => a.shiftiness_rank - b.shiftiness_rank).slice(0, 5);
+    const belowMed = top5.filter(p => p.gain_man < my).length;
+    document.getElementById("scatterVerdict").innerHTML =
+      `Across ${ps.length} ${NAMES[state.pos]}, shiftiness barely tracks space against man ` +
+      `(rank correlation <b class="num">${fmt(rho)}</b>). <b>${belowMed} of the 5 shiftiest</b> gain less than the median.`;
+  }
+
+  // ---- Leaderboard ----------------------------------------------------------
+  const COLS = [
+    { key: "shiftiness_rank", label: "Rank", f: v => v },
+    { key: "displayName", label: "Player", f: v => v },
+    { key: "routes", label: "Routes", f: v => v },
+    { key: "shiftiness", label: "Shiftiness", f: v => v.toFixed(1) },
+    { key: "avg_cut_angle", label: "Avg cut", f: v => v.toFixed(0) + "°" },
+    { key: "gain_man", label: "Space vs man", f: v => `<span class="${v >= 0 ? "pos" : "neg"}">${fmt(v)}</span>` },
+    { key: "gain_zone", label: "Space vs zone", f: v => `<span class="${v >= 0 ? "pos" : "neg"}">${fmt(v)}</span>` },
+  ];
+  const table = document.getElementById("board");
+  function drawTable() {
+    table.tHead.innerHTML = "<tr>" + COLS.map(c =>
+      `<th><button data-key="${c.key}" data-active="${state.sort.key === c.key}">${c.label}${state.sort.key === c.key ? (state.sort.asc ? " ↑" : " ↓") : ""}</button></th>`).join("") + "</tr>";
+    const { key, asc } = state.sort;
+    const rows = D.players.filter(p => p.position === state.pos)
+      .filter(p => !state.query || p.displayName.toLowerCase().includes(state.query))
+      .sort((a, b) => (a[key] > b[key] ? 1 : a[key] < b[key] ? -1 : 0) * (asc ? 1 : -1));
+    table.tBodies[0].innerHTML = rows.slice(0, 40).map(p =>
+      `<tr data-name="${p.displayName}" class="${p.displayName === state.selected ? "sel" : ""}">` +
+      COLS.map(c => `<td class="${typeof p[c.key] === "number" ? "num" : ""}">${c.f(p[c.key])}</td>`).join("") + "</tr>").join("") ||
+      `<tr><td colspan="${COLS.length}" style="text-align:left">No players match.</td></tr>`;
+  }
+  table.addEventListener("click", e => {
+    const b = e.target.closest("th button");
+    if (b) {
+      const k = b.dataset.key;
+      state.sort = { key: k, asc: state.sort.key === k ? !state.sort.asc : ["shiftiness_rank", "displayName"].includes(k) };
+      drawTable();
+      return;
+    }
+    const tr = e.target.closest("tbody tr[data-name]");
+    if (tr) select(tr.dataset.name);
+  });
+
+  // ---- Wiring ---------------------------------------------------------------
+  function select(name) {
+    state.selected = state.selected === name ? null : name;
+    drawScatter(); drawTable();
+  }
+  function render() { drawEffect(); drawScatter(); drawTable(); }
+  document.getElementById("posSeg").addEventListener("click", e => {
+    const b = e.target.closest("button"); if (!b) return;
+    state.pos = b.dataset.pos; state.selected = null;
+    document.querySelectorAll("#posSeg button").forEach(x => x.setAttribute("aria-pressed", x === b));
+    render();
+  });
+  document.getElementById("search").addEventListener("input", e => {
+    state.query = e.target.value.trim().toLowerCase();
+    // Jump to the player's position if the match is elsewhere.
+    const hit = state.query && D.players.find(p => p.displayName.toLowerCase().includes(state.query));
+    if (hit && !D.players.some(p => p.position === state.pos && p.displayName.toLowerCase().includes(state.query))) {
+      state.pos = hit.position;
+      document.querySelectorAll("#posSeg button").forEach(x => x.setAttribute("aria-pressed", x.dataset.pos === state.pos));
+      drawEffect();
+    }
+    drawScatter(); drawTable();
+  });
+
+  document.getElementById("footer").innerHTML =
+    `Data: NFL Big Data Bowl tracking (Next Gen Stats) and PFF scouting, 2021 Weeks 1–8. ` +
+    `Code and full write-up: <a href="https://github.com/amoghkr1shna/nyu-nfl-2026">github.com/amoghkr1shna/nyu-nfl-2026</a>.`;
+  render();
+})();
+</script>
+</body>
+</html>
