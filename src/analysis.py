@@ -16,6 +16,7 @@ for four things we hold fixed:
 Outputs:
     outputs/coverage_effect.csv     adjusted space gained, by position x cut angle x coverage
     outputs/regression_summary.csv  the model behind the headline, per position
+    outputs/leaderboard.csv         per player: shiftiness and space gained vs man / zone
 
     python -m src.analysis
 """
@@ -30,6 +31,12 @@ from src.paths import OUTPUTS
 METRICS_FILE = OUTPUTS / "route_metrics.csv"
 EFFECT_FILE = OUTPUTS / "coverage_effect.csv"
 REGRESSION_FILE = OUTPUTS / "regression_summary.csv"
+LEADERBOARD_FILE = OUTPUTS / "leaderboard.csv"
+
+# Leaderboard eligibility: enough routes overall, and enough against man for
+# the man number to mean something.
+MIN_ROUTES = 50
+MIN_MAN_ROUTES = 20
 
 POSITIONS = ("WR", "TE", "RB")
 CONTROLS = ["sep_before", "break_time_s", "route_depth", "time_to_throw"]
@@ -127,6 +134,45 @@ def coverage_model(df: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+# --------------------------------------------------------------------------- #
+# 3. Player leaderboard: who is shiftiest, and does it pay off against man?
+# --------------------------------------------------------------------------- #
+def leaderboard(df: pd.DataFrame) -> pd.DataFrame:
+    """One row per eligible player, ranked by shiftiness within position.
+
+    shiftiness = mean Break Sharpness over all routes. Space gained uses the
+    adjusted values, so players are compared on equal footing.
+    """
+    by_cov = (
+        df.pivot_table(index="nflId", columns="coverage", values="adj_gain",
+                       aggfunc=["mean", "size"])
+    )
+    by_cov.columns = [f"{'gain' if a == 'mean' else 'routes'}_{b.lower()}"
+                      for a, b in by_cov.columns]
+
+    players = (
+        df.groupby(["nflId", "displayName", "position"])
+        .agg(routes=("sharpness", "size"),
+             shiftiness=("sharpness", "mean"),
+             avg_cut_angle=("break_angle", "mean"),
+             real_cut_rate=("break_angle", lambda a: (a >= 30).mean()))
+        .reset_index()
+        .join(by_cov, on="nflId")
+    )
+    players = players.loc[players["routes"].ge(MIN_ROUTES)
+                          & players["routes_man"].ge(MIN_MAN_ROUTES)].copy()
+    players["man_minus_zone"] = players["gain_man"] - players["gain_zone"]
+    players["shiftiness_rank"] = (
+        players.groupby("position")["shiftiness"].rank(ascending=False, method="min")
+        .astype(int)
+    )
+    players["position"] = pd.Categorical(players["position"], POSITIONS, ordered=True)
+    cols = ["position", "shiftiness_rank", "displayName", "nflId", "routes",
+            "routes_man", "routes_zone", "shiftiness", "avg_cut_angle",
+            "real_cut_rate", "gain_man", "gain_zone", "man_minus_zone"]
+    return players.sort_values(["position", "shiftiness_rank"])[cols]
+
+
 def main() -> None:
     df = load_metrics()
     df["adj_gain"] = adjust_for_controls(df)
@@ -135,6 +181,8 @@ def main() -> None:
     effect.to_csv(EFFECT_FILE, index=False, float_format="%.4f")
     model = coverage_model(df)
     model.to_csv(REGRESSION_FILE, index=False, float_format="%.4f")
+    board = leaderboard(df)
+    board.to_csv(LEADERBOARD_FILE, index=False, float_format="%.3f")
 
     print(f"Routes: {len(df):,}")
     print("\nAdjusted space gained (yd) by cut angle, Man vs Zone:")
@@ -154,8 +202,20 @@ def main() -> None:
     print(f"\nHEADLINE (WR): against man, a cut gains {wr.loc['is_man', 'coef_yd']:+.2f} yd "
           f"vs zone (t={wr.loc['is_man', 't']:.1f}); sharper cuts help more vs man? "
           f"man_x_angle = {wr.loc['man_x_angle', 'coef_yd']:+.3f} (t={wr.loc['man_x_angle', 't']:.1f})")
+    print(f"\nLeaderboard: {len(board)} players "
+          f"(>= {MIN_ROUTES} routes, >= {MIN_MAN_ROUTES} vs man)")
+    for pos in POSITIONS:
+        top = board.loc[board["position"].eq(pos)].head(5)
+        print(f"\n  Shiftiest {pos}:")
+        print(top[["shiftiness_rank", "displayName", "routes", "shiftiness",
+                   "gain_man", "gain_zone"]].round(2).to_string(index=False))
+    pos_board = board.loc[board["position"].eq("WR")]
+    rho = pos_board["shiftiness"].rank().corr(pos_board["gain_man"].rank())
+    print(f"\n  WR: rank correlation, shiftiness vs space gained vs man = {rho:+.2f}")
+
     print(f"\nsaved {EFFECT_FILE.relative_to(OUTPUTS.parent)}, "
-          f"{REGRESSION_FILE.relative_to(OUTPUTS.parent)}")
+          f"{REGRESSION_FILE.relative_to(OUTPUTS.parent)}, "
+          f"{LEADERBOARD_FILE.relative_to(OUTPUTS.parent)}")
 
 
 if __name__ == "__main__":
