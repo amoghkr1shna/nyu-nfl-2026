@@ -2,15 +2,17 @@
 
 NFL Big Data Bowl, NYU Edition · 2021 season, Weeks 1–8 · **For coaches and scouts**
 
-Coaches call sharp-breaking routes "man beaters." We measured the cut on **31,601 routes** from 2021 Next Gen Stats tracking data and found that sharp cuts gain **no extra space against man coverage**. Instead, man defenders take away about **0.3 yards more on every cut, sharp or soft**, so a receiver needs something other than a hard cut to win against man.
+Coaches call sharp-breaking routes "man beaters." I measured the cut on **31,601 routes** from 2021 Next Gen Stats tracking data and found that sharp cuts gain **no extra space against man coverage**. Instead, man defenders take away about **0.3 yards more on every cut, sharp or soft**, so a receiver needs something other than a hard cut to win against man.
+
+**Interactive version:** [explore the findings](https://amoghkr1shna.github.io/nyu-nfl-2026/), with a position toggle, player search and sortable leaderboard.
 
 ![Sharp cuts don't beat man coverage](outputs/figures/sharpness_vs_separation.png)
 
 *How to read it:* each point is the average space a receiver gains on his defender during the cut, for one range of cut angles. The red (man) line sits below the blue (zone) line in 11 of 12 points, and sharper cuts never close the gap.
 
-*Running backs are shown for completeness but are the least reliable panel. Their sharpest "break" is often the turn out of the backfield rather than a cut against a defender, the nearest coverage defender is a weaker stand-in for who is covering them, and the 60°+ bin has only 42 man routes. The headline rests on wide receivers and tight ends.*
+*Running backs are shown for completeness but are the least reliable panel. Their sharpest "break" is often the turn out of the backfield rather than a cut against a defender. The headline rests on wide receivers and tight ends.*
 
-## The result in one table
+## Tabular Form 
 
 Fair comparison of similar cuts (same starting gap, same timing, same route depth, same time to throw):
 
@@ -21,7 +23,7 @@ Fair comparison of similar cuts (same starting gap, same timing, same route dept
 | Do sharper cuts help *more* vs man? | No (−0.02, not significant) | No (−0.02, n.s.) | No (−0.04, n.s.) |
 | Keeping speed through the cut | Helps slightly (+0.05 yd) | Helps slightly (+0.07 yd) | Hurts (−0.11 yd) |
 
-If the coaching belief were true, the second row would be clearly positive. It isn't, for any position.
+If sharp cuts really beat man coverage, that second row would show a clear positive number. For every position, it’s flat.
 
 ## Who's the shiftiest, and does it pay off?
 
@@ -29,17 +31,7 @@ If the coaching belief were true, the second row would be clearly positive. It i
 
 Shiftiness (a player's average Break Sharpness) barely predicts who wins against man: rank correlation **+0.10** across 112 wide receivers. **4 of the 5 shiftiest WRs gain less space against man than the median receiver**, and the best receiver against man, Dyami Brown, is only mid-pack on shiftiness.
 
-Shiftiest players (at least 50 routes, 20 against man; full list in [`outputs/leaderboard.csv`](outputs/leaderboard.csv)):
-
-| Rank | Wide receiver | Space vs man | Space vs zone | | Tight end | Space vs man | Space vs zone |
-|---|---|---|---|---|---|---|---|
-| 1 | Sterling Shepard | −0.47 | −0.16 | | Jack Doyle | −0.45 | −0.32 |
-| 2 | Cole Beasley | −0.70 | −0.24 | | Dallas Goedert | −0.40 | −0.16 |
-| 3 | Laviska Shenault | −0.43 | +0.18 | | Mike Gesicki | −0.39 | −0.08 |
-| 4 | DeVonta Smith | −0.34 | −0.21 | | Cameron Brate | −0.37 | −0.04 |
-| 5 | Kadarius Toney | −0.40 | −0.21 | | Travis Kelce | −0.28 | −0.28 |
-
-*Space = average yards gained on the defender per cut, adjusted. Median WR vs man: −0.34.*
+The full leaderboard for every position is sortable and searchable in the [interactive version](https://amoghkr1shna.github.io/nyu-nfl-2026/) (also in [`outputs/leaderboard.csv`](outputs/leaderboard.csv)).
 
 ## Same kind of cut, different result
 
@@ -56,7 +48,7 @@ Kupp (2021 Triple Crown season) ranks only **72nd of 112 WRs in shiftiness** and
 - **Coaches:** don't pick your "man beaters" by how sharply a receiver cuts. Against man-heavy defenses, sharp cuts alone don't buy extra space, so the space has to come from somewhere else.
 - **Scouts:** shiftiness is a style, not a predictor of winning against man. Grade man and zone separately: a receiver like Kupp can be average against man and elite against zone.
 
-## How we measured it
+## How I measured it
 
 **1. Break Sharpness (the stat).** For each route between the snap and the throw, we find the receiver's largest change of direction over 0.5 s (5 frames at 10 fps) and multiply it by how much speed he kept (speed after ÷ speed before, capped at 1).
 - Before measuring, every play is flipped so the offense moves the same way.
@@ -81,50 +73,4 @@ Kupp (2021 Triple Crown season) ranks only **72nd of 112 WRs in shiftiness** and
 
 ## How to run
 
-Requires Python 3.11+ (developed on 3.13). All results are already committed in `outputs/`, so you only need to run this to reproduce them.
-
-1. Clone this repo:
-
-   ```bash
-   git clone https://github.com/amoghkr1shna/nyu-nfl-2026 && cd nyu-nfl-2026
-   ```
-
-2. Download the data (about 830 MB; not stored in this repo):
-
-   ```bash
-   git clone https://github.com/ThompsonJamesBliss/nfl-big-data-bowl-regional-event-data data/nfl-big-data-bowl-regional-event-data
-   ```
-
-3. Install dependencies:
-
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. Run everything (about a minute):
-
-   ```bash
-   python run.py
-   ```
-
-   Add `--eda` to also rerun the exploratory checks.
-
-## Repo layout
-
-```
-run.py              one command: metrics -> analysis -> charts
-src/paths.py        file paths, loaders, direction normalization
-src/eda.py          data checks (report: outputs/eda_report.txt)
-src/metrics.py      Break Sharpness + space gained for every route
-src/analysis.py     fair man-vs-zone comparison + leaderboard
-src/charts.py       the three figures above
-EDA_FINDINGS.md     what the data checks found, and the bug they caught
-outputs/            results: route_metrics.csv, coverage_effect.csv,
-                    regression_summary.csv, leaderboard.csv, figures/
-data/               raw data, downloaded separately (git-ignored)
-```
-
-## Data
-
-- Tracking, plays, players and PFF scouting data: [NFL Big Data Bowl regional event data](https://github.com/ThompsonJamesBliss/nfl-big-data-bowl-regional-event-data) (NFL Next Gen Stats, Pro Football Focus), 2021 season Weeks 1–8.
-- No external data was used.
+All results are already in `outputs/`. To rebuild them from the raw data (about a minute), see [REPRODUCE.md](REPRODUCE.md).
