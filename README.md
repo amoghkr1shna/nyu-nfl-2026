@@ -101,7 +101,7 @@ Requires Python 3.11+ (developed on 3.13). All results are already committed in 
    pip install -r requirements.txt
    ```
 
-4. Run everything (about 30 seconds):
+4. Run everything (about a minute):
 
    ```bash
    python run.py
