@@ -700,6 +700,64 @@ def check_final_sample(plays: pd.DataFrame, pff: pd.DataFrame, players: pd.DataF
     return usable
 
 
+def check_confounders(plays: pd.DataFrame, windows: pd.DataFrame) -> None:
+    """Man and zone are not called in the same situations.
+
+    If man coverage comes with quicker throws or different down/distance, a raw
+    man-vs-zone separation gap could reflect the situation, not the route.
+    """
+    header("11. MAN vs ZONE CONFOUNDERS")
+
+    df = windows.merge(plays, on=["gameId", "playId"], how="inner")
+    df = df.loc[df["pff_passCoverageType"].isin(["Man", "Zone"])].copy()
+    df["time_to_throw"] = (df["throw_frame"] - df["snap_frame"]) / 10.0
+
+    print("Time from snap to throw (s) by coverage type:")
+    print(
+        df.groupby("pff_passCoverageType")["time_to_throw"]
+        .agg(plays="size", mean="mean", median="median", p90=lambda s: s.quantile(0.90))
+        .round(2)
+        .to_string()
+    )
+
+    print("\nSituation profile by coverage type:")
+    print(
+        df.groupby("pff_passCoverageType")
+        .agg(
+            down=("down", "mean"),
+            yardsToGo=("yardsToGo", "mean"),
+            defendersInBox=("defendersInBox", "mean"),
+            play_action_rate=("pff_playAction", "mean"),
+            completion_rate=("passResult", lambda s: s.eq("C").mean()),
+            yards=("playResult", "mean"),
+        )
+        .round(3)
+        .to_string()
+    )
+
+    print("\nMan rate by down:")
+    print(
+        pd.crosstab(df["down"], df["pff_passCoverageType"], normalize="index")
+        .round(3)
+        .to_string()
+    )
+
+    print("\nMan rate by offense formation:")
+    ct = pd.crosstab(df["offenseFormation"], df["pff_passCoverageType"])
+    ct["man_rate"] = (ct["Man"] / ct.sum(axis=1)).round(3)
+    print(ct.to_string())
+
+    print("\nMan rate by yards-to-go bucket:")
+    buckets = pd.cut(df["yardsToGo"], [0, 3, 6, 10, 15, 100],
+                     labels=["1-3", "4-6", "7-10", "11-15", "16+"])
+    ct = pd.crosstab(buckets, df["pff_passCoverageType"], normalize="index").round(3)
+    print(ct.to_string())
+
+    print("\n=> Man plays are thrown marginally quicker and skew to different downs,")
+    print("   so the main chart should hold time-to-throw and position fixed (facet")
+    print("   or control) before claiming a man-vs-zone effect.")
+
+
 def main() -> None:
     games, players, plays, pff = load_games(), load_players(), load_plays(), load_pff()
     check_shapes(games, players, plays, pff)
@@ -713,7 +771,8 @@ def main() -> None:
     separation_feasibility(norm, pff, players)
     check_direction_signal(norm, pff, players)
     check_speed_gate(pff, players)
-    check_final_sample(plays, pff, players)
+    windows = check_final_sample(plays, pff, players)
+    check_confounders(plays, windows)
     header("EDA COMPLETE")
 
 
