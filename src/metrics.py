@@ -7,6 +7,9 @@ play, compute:
                    only where the receiver is already moving >= MIN_SPEED
   * sharpness    - break_angle x speed retention (speed after / before, <= 1)
   * separation   - distance (yd) to the nearest Coverage defender at the throw
+  * sep_gain     - space the cut itself creates: distance to the defender who
+                   was nearest at the start of the break, measured again at
+                   the end of the break (0.5 s later), minus the start distance
 
 Writes outputs/route_metrics.csv (one row per route).
 
@@ -146,33 +149,72 @@ def process_game(game_id: int, ctx: dict[str, pd.DataFrame]) -> pd.DataFrame:
     los = ball.set_index("playId")["x"]
 
     at_throw = trk.loc[trk["frameId"].eq(trk["throw_frame"])]
-    def_at_throw = at_throw.merge(defenders[["playId", "nflId"]], on=["playId", "nflId"])
+    def_trk = trk.merge(defenders[["playId", "nflId"]], on=["playId", "nflId"])
+    def_at_throw = def_trk.loc[def_trk["frameId"].eq(def_trk["throw_frame"])]
 
     route_trk = trk.merge(routes[["playId", "nflId"]], on=["playId", "nflId"])
 
     rows = []
     for play_id, play_trk in route_trk.groupby("playId", sort=False):
         d = def_at_throw.loc[def_at_throw["playId"].eq(play_id)]
+        if d.empty:
+            continue
         throw_pos = at_throw.loc[at_throw["playId"].eq(play_id)].set_index("nflId")
+        # Defender positions by frame for this play: frameId -> rows.
+        def_by_frame = {f: g for f, g in def_trk.loc[def_trk["playId"].eq(play_id)]
+                        .groupby("frameId", sort=False)}
 
         for nfl_id, r in play_trk.groupby("nflId", sort=False):
             brk = break_sharpness(r["dir"].to_numpy(), r["s"].to_numpy())
-            if brk is None or nfl_id not in throw_pos.index or d.empty:
+            if brk is None or nfl_id not in throw_pos.index:
                 continue
             rx, ry = throw_pos.loc[nfl_id, ["x", "y"]].to_numpy(dtype=float)
             sep = nearest_distance(np.array([rx]), np.array([ry]),
                                    d["x"].to_numpy(), d["y"].to_numpy())[0]
+            gain = separation_gain(r, brk["break_frame_offset"], def_by_frame)
             rows.append({
                 "gameId": game_id,
                 "playId": play_id,
                 "nflId": int(nfl_id),
                 **brk,
+                **gain,
                 "break_time_s": brk["break_frame_offset"] / 10.0,
                 "separation": float(sep),
                 "route_depth": float(rx - los.get(play_id, np.nan)),
                 "n_frames": len(r),
             })
     return pd.DataFrame(rows)
+
+
+def separation_gain(route: pd.DataFrame, offset: int,
+                    def_by_frame: dict[int, pd.DataFrame]) -> dict[str, float]:
+    """Space the cut creates on the defender nearest at the start of the break.
+
+    Picks the Coverage defender closest to the receiver when the break starts,
+    then measures the same pair again BREAK_FRAMES later (end of the break).
+    Following one defender, not "whoever is nearest", isolates what the cut did
+    to the man on him.
+    """
+    empty = {"sep_before": np.nan, "sep_after": np.nan, "sep_gain": np.nan}
+    frames = route["frameId"].to_numpy()
+    f0, f1 = frames[offset], frames[offset + BREAK_FRAMES]
+    d0, d1 = def_by_frame.get(f0), def_by_frame.get(f1)
+    if d0 is None or d1 is None:
+        return empty
+
+    rx0, ry0 = route["x"].to_numpy()[offset], route["y"].to_numpy()[offset]
+    rx1, ry1 = (route["x"].to_numpy()[offset + BREAK_FRAMES],
+                route["y"].to_numpy()[offset + BREAK_FRAMES])
+
+    dist0 = np.hypot(d0["x"].to_numpy() - rx0, d0["y"].to_numpy() - ry0)
+    k = int(np.argmin(dist0))
+    defender_id = d0["nflId"].to_numpy()[k]
+    same = d1.loc[d1["nflId"].eq(defender_id)]
+    if same.empty:
+        return empty
+    after = float(np.hypot(same["x"].iloc[0] - rx1, same["y"].iloc[0] - ry1))
+    before = float(dist0[k])
+    return {"sep_before": before, "sep_after": after, "sep_gain": after - before}
 
 
 # --------------------------------------------------------------------------- #
@@ -207,7 +249,8 @@ def build_route_metrics(ctx: dict[str, pd.DataFrame],
         "gameId", "playId", "nflId", "displayName", "position",
         "coverage", "coverage_scheme", "down", "yardsToGo", "passResult",
         "time_to_throw", "break_time_s", "break_angle", "speed_before",
-        "speed_after", "speed_retention", "sharpness", "separation",
+        "speed_after", "speed_retention", "sharpness",
+        "sep_before", "sep_after", "sep_gain", "separation",
         "route_depth", "n_frames",
     ]
     return out[cols]
@@ -220,8 +263,10 @@ def summarize(df: pd.DataFrame, routes_in_sample: int) -> None:
     print("\nBy position x coverage (route counts):")
     print(pd.crosstab(df["position"], df["coverage"], margins=True).to_string())
     print("\nMedians by position x coverage:")
-    print(df.groupby(["position", "coverage"])[["break_angle", "sharpness", "separation"]]
-            .median().round(2).to_string())
+    print(df.groupby(["position", "coverage"])[
+        ["break_angle", "sharpness", "sep_gain", "separation"]
+    ].median().round(2).to_string())
+    print(f"\nRoutes missing sep_gain: {df['sep_gain'].isna().sum():,}")
     print(f"\nBreak angle > 120 deg: {(df['break_angle'] > 120).mean():.1%}")
     print(f"Separation outside 0-40 yd: {(~df['separation'].between(0, 40)).sum()}")
 
